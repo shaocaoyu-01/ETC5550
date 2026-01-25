@@ -1,0 +1,15 @@
+---
+title: "fed_research"
+author: Caoyu Shao
+---
+
+
+
+
+```{python}
+from fomc_get_data.fomc_get_data import FomcGetData
+fomc = FomcGetData()
+df = fomc.get_contents() # 自动从官网抓取所有 Statements, Minutes, Speeches
+df.to_csv("fed_data.csv")
+
+```

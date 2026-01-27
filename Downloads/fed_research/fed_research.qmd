@@ -3,13 +3,39 @@ title: "fed_research"
 author: Caoyu Shao
 ---
 
+## Abstract
+
+## Introduction
+With too much attention was attached to the Federal Reserves' actions like increasing or decreasing the interest rate, more researchers focused on what the federal reserve said, and its influence on the market.Hansen et al. (2019) demonstrate that the specific phrasing used in central bank communications can trigger immediate reactions in equity markets instead of the federal actions because the market is smart, and they coul d predict the next step of the federal reserve,but the communication is hard for them to predict. According to his results, the S&P500 index volatility was 90% contributed by statement but rates.
 
 
+
+
+
+## Literature Review
+
+
+## Methodology
+
+
+
+
+## Results
+
+
+## Discussion
+
+
+## Conclusion
+
+
+## Reference
 
 ```{python}
 from fomc_get_data.fomc_get_data import FomcGetData
 fomc = FomcGetData()
-df = fomc.get_contents() # 自动从官网抓取所有 Statements, Minutes, Speeches
+df = fomc.get_contents() 
 df.to_csv("fed_data.csv")
 
 ```
+

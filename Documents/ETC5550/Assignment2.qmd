@@ -1,0 +1,19 @@
+---
+title: "Assignment2"
+format: html
+editor: visual
+---
+
+```{r}
+library(fpp3)
+get_my_data <- function(student_id) {
+  set.seed(student_id)
+  all_data <- readr::read_rds("https://bit.ly/monashretaildata")
+  while(TRUE) {
+    retail <- filter(all_data, `Series ID` == sample(`Series ID`, 1))
+    if(!any(is.na(fill_gaps(retail)$Turnover))) return(retail)
+  }
+}
+# Replace the argument with your student ID
+retail <- get_my_data(35323876)
+```

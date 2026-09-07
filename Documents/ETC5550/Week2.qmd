@@ -1,0 +1,291 @@
+---
+title: "Week2"
+format: html
+editor: visual
+---
+
+```{r}
+library(fpp3)
+
+?aus_production
+?pelt
+?gafa_stock
+?vic_elec
+```
+
+```{r}
+aus_production|>
+  select(Quarter, Bricks)|>
+  autoplot(Bricks)
+```
+
+```{r}
+pelt|> autoplot(Lynx)
+```
+
+```{r}
+gafa_stock |>autoplot(Close)
+```
+
+```{r}
+vic_elec |> autoplot(Demand)
+```
+
+```{r}
+vic_elec |>
+  filter(
+    Time >= ymd_hms("2014-01-01 00:00:00"),
+    Time < ymd_hms("2014-01-08 00:00:00")
+  ) |>
+  autoplot(Demand) +
+  scale_x_datetime(
+    date_breaks = "1 day",
+    date_labels = "%d %b"
+  ) +
+  labs(
+    title = "Electricity demand in Victoria",
+    x = "Date",
+    y = "Electricity demand (MW)"
+  )
+```
+
+```{r}
+gafa_stock |>
+  group_by(Symbol) |>
+  filter(Close == max(Close)) |>
+  select(Symbol, Date, Close)
+```
+
+```{r}
+tute1 <- readr::read_csv("data/tute1.csv")
+View(tute1)
+```
+
+```{r}
+mytimeseries <- tute1 |>
+  mutate(Quarter = yearquarter(Quarter)) |>
+  as_tsibble(index = Quarter)
+```
+
+```{r}
+mytimeseries |>
+  pivot_longer(-Quarter) |>
+  ggplot(aes(x = Quarter, y = value, colour = name)) +
+  geom_line() +
+  facet_grid(name ~ ., scales = "free_y")
+```
+
+```{r}
+install.packages("USgas")
+library(USgas)
+library(fpp3)
+```
+
+```{r}
+head(us_total)
+```
+
+```{r}
+us_total_ts <- us_total |>
+  as_tsibble(
+    index = year,
+    key = state
+  )
+```
+
+```{r}
+us_total_ts |>
+  filter(state %in% c(
+    "Maine",
+    "Vermont",
+    "New Hampshire",
+    "Massachusetts",
+    "Connecticut",
+    "Rhole Island"
+  )
+  )|>
+  autoplot(y)
+```
+
+```{r}
+readxl::read_excel("data/tourism.xlsx")
+```
+
+```{r}
+tourism <- tourism |>
+  mutate(Quarter = yearquarter(Quarter)) |>
+  as_tsibble(index = Quarter)
+```
+
+```{r}
+tourism |> group_by(Region, Purpose)|>
+  summarize(
+    Average_Trips = mean(Trips)
+  )|>
+  arrange(desc(Average_Trips))
+```
+
+```{r}
+tourism_state <- tourism |>
+  as.tibble() |>
+  group_by(State, Quarter)|>
+  summarise(
+    Trip = sum(Trips),
+    .groups="drop"
+  )|>
+  as_tsibble(index = Quarter,
+             key = State)
+```
+
+```{r}
+
+aus_arrivals|> autoplot(Arrivals)
+```
+
+```{r}
+aus_arrivals|> gg_season()
+```
+
+```{r}
+aus_arrivals |> gg_subseries()
+```
+
+```{r}
+set.seed(35323876)
+myseries <- aus_retail |>
+  filter(`Series ID` == sample(aus_retail$`Series ID`,1))
+```
+
+```{r}
+retail |> autoplot(Turnover)
+retail |> gg_season(Turnover)
+retail |> gg_lag(Turnover)
+retail |> gg_subseries(Turnover)
+```
+
+```{r}
+retail |>
+  ACF(Turnover) |> 
+  autoplot()
+```
+
+```{r}
+aus_production |>
+  autoplot(Bricks) +
+  labs(
+    title = "Australian Brick Production",
+    y = "Bricks"
+  )
+
+aus_production |>
+  gg_season(Bricks)
+
+aus_production |>
+  gg_subseries(Bricks)
+
+aus_production |>
+  gg_lag(Bricks)
+
+aus_production |>
+  ACF(Bricks) |>
+  autoplot()
+```
+
+```{r}
+pelt |>
+  autoplot(Hare) +
+  labs(
+    title = "Annual Hare Pelts",
+    y = "Hare"
+  )
+
+pelt |>
+  gg_lag(Hare)
+
+pelt |>
+  ACF(Hare) |>
+  autoplot()
+```
+
+```{r}
+pbs_h02 <- PBS |>
+  filter(ATC2 == "H02")
+
+pbs_h02 |>
+  autoplot(Cost) +
+  labs(
+    title = "PBS H02 Cost",
+    y = "Cost"
+  )
+
+pbs_h02 |>
+  gg_season(Cost)
+
+pbs_h02 |>
+  gg_subseries(Cost)
+
+pbs_h02 |>
+  gg_lag(Cost)
+
+pbs_h02 |>
+  ACF(Cost) |>
+  autoplot()
+```
+
+```{r}
+us_gasoline |>
+  autoplot(Barrels) +
+  labs(
+    title = "US Gasoline Supply",
+    y = "Barrels"
+  )
+
+us_gasoline |>
+  gg_season(Barrels)
+
+us_gasoline |>
+  gg_subseries(Barrels)
+
+us_gasoline |>
+  gg_lag(Barrels)
+
+us_gasoline |>
+  ACF(Barrels) |>
+  autoplot()
+```
+
+```{r}
+aus_pigs_victoria <- aus_livestock |> mutate(
+  Month = yearmonth(Month)
+)|>
+  filter(
+    Month >= yearmonth("1990 Jan"),
+    Month <= yearmonth("2020 Dec"),
+    Animal == "Pigs",
+    State  == "Victoria"
+  )
+```
+
+```{r}
+aus_pigs_victoria |> autoplot(Count)
+```
+
+```{r}
+aus_pigs_victoria |> ACF(Count,lag_max = 300) |>
+  autoplot()
+```
+
+```{r}
+dgoog <- gafa_stock |>
+  filter(Symbol == "GOOG", year(Date) >= 2018) |>
+  mutate(trading_day = row_number()) |>
+  update_tsibble(index = trading_day, regular = TRUE) |>
+  mutate(diff = difference(Close))
+```
+
+```{r}
+dgoog |> ACF(Close, lag_max = 20)|>
+  autoplot()
+```
+
+No

@@ -1,28 +1,160 @@
 ---
-
----
 title: "Week3"
 format: html
 editor: visual
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
+1.
 ```{r}
-1 + 1
+library(fpp3)
+
+gdp_per_capita <- global_economy |>
+  filter(!is.na(GDP), !is.na(Population),Population>0)|>
+           mutate(gdp_per_capita =GDP/Population)
+
+
+
+gdp_per_capita |>
+  ggplot(aes(
+    x= Year,
+    y= gdp_per_capita,
+    group= Country
+  ))+
+  geom_line(alpha = 0.35,colour = "steelblue")+
+  labs(
+    title = "GDP per capita by country",
+    x = "Year",
+    y = "GDP per capita(current US dollars)" 
+  )+
+  scale_y_continuous(labels = scales::label_dollar())+ 
+  theme_minimal()
+```
+```{r}
+gdp_per_capita |>
+  ggplot(aes(
+    x=Year,
+    y= gdp_per_capita,
+    group = Country))+
+  geom_line(alpha = 0.35,colour = "steelblue")+
+  scale_y_log10(labels = scales::label_dollar())+
+  labs(
+    title = "GDP per capita by country",
+    subtitle = "logarithmic vertical scale",
+    x = "year",
+    y = "GDP per capita(log_scale)"
+  )+
+  theme_minimal()
+
+```
+```{r}
+gdp_per_capita |>
+  slice_max(gdp_per_capita, n = 10) |>
+  select(Country, Year, gdp_per_capita)
+```
+```{r}
+annual_height <- gdp_per_capita |>
+  index_by(Year) |>
+  slice_max(gdp_per_capita,n=1, with_ties = FALSE)|>
+  ungroup()|>
+  select(Year, Country, gdp_per_capita)
+
+annual_height
 ```
 
-You can add options to executable code like this
 
 ```{r}
-#| echo: false
-2 * 2
+annual_height |>
+  ggplot(aes(
+    x = Year,
+    y = gdp_per_capita,
+    colour = Country,
+    group = Country
+  )) +
+  geom_line() +
+  geom_point() +
+  scale_y_continuous(labels = scales::label_dollar()) +
+  labs(
+    title = "Country with the highest GDP per capita each year",
+    x = "Year",
+    y = "GDP per capita"
+  ) +
+  theme_minimal()
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+2.
+```{r}
+us_gdp <- global_economy |>
+  filter(Country == "United States")
+
+us_gdp |>
+  autoplot(GDP) +
+  labs(
+    title = "United States GDP",
+    x = "Year",
+    y = "GDP (US dollars)"
+  )
+```
+```{r}
+us_gdp |>
+  autoplot(log(GDP)) +
+  labs(
+    title = "Log of United States GDP",
+    x = "Year",
+    y = "log(GDP)"
+  )
+```
+```{r}
+vic_bulls <-aus_livestock |>
+  filter(
+    State =="Victoria",
+    Animal == "Bulls, bullocks and steers"
+  )
+
+vic_bulls |>
+  autoplot(Count) +
+  labs(
+    title = "Slaughter of Bulls, Bullocks and Steers in Victoria",
+    x = "Month",
+    y = "Number slaughtered"
+  )
+```
+```{r}
+vic_bulls |>
+  autoplot(log(Count))+
+  labs(title = "Log Slaughter of Bulls, Bullocks and Steers in Victoria",
+       x = "Month",
+       y = "log(Count)")
+ 
+```
+```{r}
+vic_elec |>
+  filter(
+    Time >= as.POSIXct("2014-01-01"),
+    Time <= as.POSIXct("2014-02-28"))|>
+  autoplot(Demand) +
+  labs(
+    title = "Victoria Electricity Demand",
+    x = "Time",
+    y = "Demand(Mwh)"
+  )
+```
+
+```{r}
+aus_production |>
+  autoplot(Gas) +
+  labs(
+    title = "Australian Gas Production",
+    x = "Quarter",
+    y = "Gas production(petajoules)"
+  )
+```
+```{r}
+aus_production |>
+  autoplot(log(Gas)) +
+  labs(
+    title = "Log of Australian Gas Production",
+    x = "Quarter",
+    y = "log(Gas production)"
+  )
+```
+

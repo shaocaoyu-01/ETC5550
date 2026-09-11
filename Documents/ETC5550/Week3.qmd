@@ -1,4 +1,4 @@
----
+------------------------------------------------------------------------
 
 ---
 title: "Week3"
@@ -6,23 +6,31 @@ format: html
 editor: visual
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+1\.
 
 ```{r}
-1 + 1
-```
+library(fpp3)
 
-You can add options to executable code like this
+global_economy |>
+  mutate(GDP_per_capita = GDP / Population) |>
+  autoplot(GDP_per_capita)
+```
 
 ```{r}
-#| echo: false
-2 * 2
+gdp_pc <- global_economy |>
+  mutate(GDP_per_capita = GDP / Population)
+
+gdp_pc |>
+  index_by(Year) |>
+  slice_max(GDP_per_capita, n = 1) |>
+  select(Year, Country, GDP_per_capita)
+
+
+gdp_pc |>
+  slice_max(GDP_per_capita, n = 1) |>
+  select(Year, Country, GDP_per_capita)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+```{r}
+
+```

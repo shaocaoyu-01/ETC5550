@@ -1,0 +1,82 @@
+---
+title: "Week8"
+format: html
+---
+
+
+```{r}
+library(fpp3)
+gafa_stock |>
+    filter(Symbol == "AMZN")|>
+    mutate(t = row_number())|>
+    update_tsibble(index = t)|>
+    gg_tsdisplay(Close, plot_type = "partial")
+```
+
+
+3.For the following series, find an appropriate Box-Cox transformation and order of differencing in order to obtain stationary data.
+
+Turkish GDP from global_economy.
+Accommodation takings in the state of Tasmania from aus_accommodation.
+Monthly sales from souvenirs.
+
+```{r}
+# --- 1. Turkish GDP ---
+gdp_tr <- global_economy |> filter(Country == "Turkey")
+gdp_tr |> autoplot(GDP) + labs(title = "Turkish GDP")
+
+# Box-Cox lambda (Guerrero) and required differencing
+gdp_tr |> features(GDP, guerrero)
+gdp_tr |> features(GDP, list(unitroot_ndiffs, unitroot_nsdiffs))
+
+# Check the chosen transformation is now stationary
+gdp_tr |>
+  mutate(GDP_bc = box_cox(GDP, 0.157)) |>
+  gg_tsdisplay(difference(GDP_bc), plot_type = "partial") +
+  labs(title = "Turkish GDP: Box-Cox(0.157) + 1 difference")
+```
+
+**Turkish GDP.** Guerrero's method suggests $\lambda = 0.157$; a power transformation is
+needed because GDP grows multiplicatively. The series is annual, so there is no
+seasonal differencing (`nsdiffs = 0`). One non-seasonal difference (`ndiffs = 1`)
+makes the series stationary. The ACF/PACF of the transformed, differenced series
+show no remaining autocorrelation structure.
+
+```{r}
+# --- 2. Accommodation takings, Tasmania ---
+tas <- aus_accommodation |> filter(State == "Tasmania")
+tas |> autoplot(Takings) + labs(title = "Tasmania accommodation takings")
+
+tas |> features(Takings, guerrero)
+tas |> features(Takings, list(unitroot_ndiffs, unitroot_nsdiffs))
+
+tas |>
+  mutate(Takings_bc = box_cox(Takings, 0.002)) |>
+  gg_tsdisplay(difference(Takings_bc, 4) |> difference(), plot_type = "partial") +
+  labs(title = "Tasmania: log + seasonal(4) + 1 difference")
+```
+
+**Accommodation takings, Tasmania.** Guerrero's method gives $\lambda \approx 0.002$,
+so a log transformation is appropriate (the seasonal amplitude grows with the level).
+The data are quarterly: one seasonal difference at lag 4 brings the seasonal pattern
+under control, and one further non-seasonal difference is needed
+(`ndiffs = 1`, `nsdiffs = 1`).
+
+```{r}
+# --- 3. Monthly sales, souvenirs ---
+souvenirs |> autoplot(Sales) + labs(title = "Souvenir monthly sales")
+
+souvenirs |> features(Sales, guerrero)
+souvenirs |> features(Sales, list(unitroot_ndiffs, unitroot_nsdiffs))
+
+souvenirs |>
+  mutate(Sales_bc = box_cox(Sales, 0.002)) |>
+  gg_tsdisplay(difference(Sales_bc, 12) |> difference(), plot_type = "partial") +
+  labs(title = "Souvenirs: log + seasonal(12) + 1 difference")
+```
+
+**Souvenir sales.** Guerrero's method gives $\lambda \approx 0.002$, again indicating
+a log transformation, since the seasonal variation increases strongly with the level.
+The data are monthly, so one seasonal difference at lag 12 removes the seasonality,
+followed by one non-seasonal difference (`ndiffs = 1`, `nsdiffs = 1`).
+

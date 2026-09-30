@@ -1,0 +1,119 @@
+---
+title: "ETC5550Assignment1"
+author: Shao Caoyu
+format: html
+execute:
+  echo: true
+  message: false
+---
+
+```{r}
+#| label: get-data
+#| message: false
+#| warning: false
+library(fpp3)
+get_my_data <- function(student_id) {
+  set.seed(student_id)
+  all_data <- readr::read_rds("https://bit.ly/monashretaildata")
+  while(TRUE) {
+    retail <- filter(all_data, `Series ID` == sample(`Series ID`, 1))
+    if(!any(is.na(fill_gaps(retail)$Turnover))) return(retail)
+  }
+}
+# Replace the argument with your student ID
+retail <- get_my_data(35323876)
+```
+
+```{r}
+retail |>
+  distinct(State, Industry, `Series ID`)
+```
+
+```{r}
+retail |>
+  autoplot(Turnover) +
+  labs(
+    title = paste(
+      unique(retail$Industry),
+      "-",
+      unique(retail$State)
+    ),
+    x = "Month",
+    y = "Turnover (AUD millions)"
+  )
+```
+
+This is a time series plot about Electrical and Electronic goods retailing turnover from 1982 April to 2022 December in Western Australia, measured at a monthly frequency.
+From the plot above, we could find that in Western Australia, the electrical and electronic goods retailing monthly output has an increasing trend. There seems to be some seasonality. The variation is becoming larger when time passes. I think here a cox-box transformation is necessary.
+
+```{r}
+retail |>
+  gg_season(Turnover) +
+  labs(
+    title = "Seasonal Plot of Monthly Retail Turnover",
+    x = "Month",
+    y = "Turnover (AUD millions)"
+  )
+```
+This is Seasonal plot of Monthly Retail Turnover from 1982 to 2022.
+
+From this plot, we find that the Electrical and Electronic goods retailing turnover in Western Australia is increasing from 1982 to 2022. Besides, the seasonal plot shows a clear monthly seasonal pattern. Turnover tends to be highest in December in a year. The general seasonal shape is reasonably consistent across years, although the magnitude of the seasonal fluctuations has increased over time.
+
+```{r}
+retail |>
+  gg_subseries(Turnover) +
+  labs(
+    title = "Seasonal Subseries Plot of Monthly Retail Turnover",
+    x = "Month",
+    y = "Turnover (AUD millions)"
+  )
+```
+This is a subseries plot of Monthly Retail Turnover from 1982 to 2022.
+The subseries plot confirms the presence of seasonality, with December having the highest average turnover and February having the lowest. Most monthly subseries show an upward trend over time, indicating that the overall growth in turnover occurs across most months. The December subseries also shows greater variability than the other months. That is probably due to the Christmas day holiday and its associated promotion activities.
+
+```{r}
+lambda <- retail |>
+  features(Turnover, features = guerrero) |>
+  pull(lambda_guerrero)
+
+lambda
+```
+
+```{r}
+retail |>
+  autoplot(box_cox(Turnover, lambda)) +
+  labs(
+    title = paste(
+      "Box-Cox Transformed Retail Turnover, lambda =",
+      round(lambda, 2)
+    ),
+    x = "Month",
+    y = "Transformed turnover"
+  )
+```
+
+I use lamda = - 0.05. The original time series shows increasing variation as the turnover rise. In particular, the seasonal variation is larger in the later part than the earlier part, suggesting multiplicative rather than additive variation. Therefore, I think the box-cox transformation is reasonable.
+
+The Guerrero method is used to estimate the lamda. It indicates lamda should be -0.05. So I chose -0.05
+
+```{r}
+retail |>
+  model(
+    stl = STL(box_cox(Turnover, lambda))
+  ) |>
+  components() |>
+  autoplot() +
+  labs(
+    title = paste(
+      "STL Decomposition of Box-Cox Transformed Retail Turnover",
+      "(lambda =", round(lambda, 2), ")"
+    )
+  )
+```
+This is STL decomposition plot after Box-cox transformed, whose lamda is -0.05, about electrical and electronic goods retail turnover in Western Australia.
+
+The trend component show a strong and persistent increase in turnover over the most of the sample period.
+
+The seasonal component is strong and relatively stable, confirming the recurring monthly pattern observed in the seasonal and subseries plots.
+
+Most remainder values are relatively small, suggesting that the trend and seasonal components explain a substantial proportion of the variation. However, several large remainder value occur around 2020, indicating unusual movement that are not explained by the normal trend or seasonal pattern.

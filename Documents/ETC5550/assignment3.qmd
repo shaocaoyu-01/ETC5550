@@ -1,7 +1,6 @@
 ---
-title: "Assignment2"
+title: "Untitled"
 format: html
-editor: visual
 ---
 
 ```{r}
@@ -17,3 +16,5 @@ get_my_data <- function(student_id) {
 # Replace the argument with your student ID
 retail <- get_my_data(35323876)
 ```
+
+

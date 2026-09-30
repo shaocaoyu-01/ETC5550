@@ -1,0 +1,37 @@
+---
+title: "Week7"
+author: Shao Caoyu
+format: html
+---
+The points this week is about how to choose the correct model
+
+ETS()
+E refers to error , T refers to trend , and S refers to seasonality
+
+
+some points about this week's quiz
+
+forecast method
+
+search about the multiplicative trend
+
+
+table with the 
+
+
+Compute the total domestic overnight trips across Australia from the tourism dataset.
+
+Plot the data and describe the main features of the series.
+Decompose the series using STL and obtain the seasonally adjusted data.
+Forecast the next two years of the series using an additive damped trend method applied to the seasonally adjusted data. (This can be specified using decomposition_model().)
+Forecast the next two years of the series using an appropriate model for Holt’s linear method applied to the seasonally adjusted data (as before but without damped trend).
+Now use ETS() to choose a seasonal model for the data.
+Compare the RMSE of the ETS model with the RMSE of the models you obtained using STL decompositions. Which gives the better in-sample fits?
+Compare the forecasts from the three approaches? Which seems most reasonable?
+Check the residuals of your preferred model.
+
+```{r}
+
+```
+
+

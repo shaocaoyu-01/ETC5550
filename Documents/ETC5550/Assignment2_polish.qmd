@@ -1,0 +1,519 @@
+---
+title: "Assignment2-polished"
+author: Caoyu shao
+format: html
+---
+
+## Question 1
+```{r}
+#| message: false
+#| warning: false
+library(fpp3)
+get_my_data <- function(student_id) {
+  set.seed(student_id)
+  all_data <- readr::read_rds("https://bit.ly/monashretaildata")
+  while(TRUE) {
+    retail <- filter(all_data, `Series ID` == sample(`Series ID`, 1))
+    if(!any(is.na(fill_gaps(retail)$Turnover))) return(retail)
+  }
+}
+# Replace the argument with your student ID
+retail <- get_my_data(35323876)
+
+
+retail
+```
+
+
+There are 489 monthly observations of retail turnover for the electrical and electronic goods industry in Western Australia, series-id A3349660W, covering from 1982 April to 2022 December.
+
+
+```{r}
+#| label: plot-series
+#| message: false
+#| warning: false
+
+retail |>
+    autoplot(Turnover) +
+    labs(
+        title = "Monthly retail turnover",
+        subtitle = paste(retail$Industry[1],"-",retail$State[1]),
+        x= "Month",
+        y= "Turnover($m)"
+    )+
+    geom_vline(xintercept = yearmonth("2019 Jan"),linetype = "dashed",colour = "red")
+```
+
+The time series shows a clear upward trend together with a strong, stable monthly seasonal pattern. The red dashed line divide the series into training set and test set. From the plot above, we found the variance is increasing as the turnover increase, so a multiplicative ETS model is appropriate here.
+
+
+### Training and test sets
+
+The test set is **2019 January to 2022 December**. It lasts for 4 years, 48 months, the rest of the observations make up with the training set.
+
+```{r}
+#| label: split
+#| message: false
+#| warning: false
+
+train <- retail |>
+  filter(Month <= yearmonth("2018 Dec"))
+
+test <- retail |>
+  filter(
+    Month >= yearmonth("2019 Jan"),
+    Month <= yearmonth("2022 Dec")
+  )
+
+cat("Training set:", format(min(train$Month)), "to", format(max(train$Month)), "->", nrow(train), "obs\n")
+cat("Test set:    ", format(min(test$Month)), "to", format(max(test$Month)), "->", nrow(test), "obs\n")
+
+```
+
+### Fit the model
+An automatically selected ETS model is fitted to the training data along with three benchmark method: the mean method, the naive method and the seasonal naive method.
+
+
+```{r}
+#| label: fit-models
+#| message: false
+#| warning: false
+
+fit <- train |>
+    model(
+        ETS = ETS(Turnover),
+        Mean= MEAN(Turnover),
+        Naive=NAIVE(Turnover),
+        `Seasonal naive`=SNAIVE(Turnover)
+    )
+
+fit
+```
+
+The automatically selected model is a multiplicative-error, additive trend, and multiplicative seasonal ETS model. This was chosen by minimising the AICc over the space of permissible ETS model, and it matches the visual features of the data.
+
+
+```{r}
+#| label: report-ets
+#| message: false
+#| warning: false
+
+report(fit |> select(ETS))
+```
+
+### Forecasts on the test
+
+```{r}
+#| label: forecast-test
+#| message: false
+#| warning: false
+
+fc_test <- fit |> forecast(h = "4 years")
+
+fc_test |>
+  autoplot(level = NULL) +
+  autolayer(train |> filter(year(Month) >= 2010), Turnover) +
+  autolayer(test, Turnover) +
+  labs(
+    title = "Forecasts for the 2019-2022 test set",
+    subtitle = "Historical data shown from 2010",
+    x = "Month",
+    y = "Turnover ($m)"
+  )
+```
+
+
+```{r}
+#| label: accuracy-test
+#| message: false
+#| warning: false
+
+acc_test <- fc_test |>
+  accuracy(test) |>
+  select(.model, ME, RMSE, MAE, MAPE) |>
+  arrange(RMSE)
+
+acc_test
+```
+
+
+```{r}
+#| label: rmse-test-bar
+#| message: false
+#| warning: false
+#| fig-height: 3
+
+acc_test |>
+  ggplot(aes(x = RMSE, y = forcats::fct_reorder(.model, RMSE))) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = round(RMSE, 1)), hjust = -0.2) +
+  labs(
+    title = "Test set RMSE by method",
+    x = "RMSE (turnover, $m)",
+    y = NULL
+  )
+```
+
+From the data above, the ets model gives the best forecasts, with a RMSE of 38.8. The second is seasonal naive, the third is naive, the last is the mean method.
+
+The order is intuitive, the series has a stong upward trend, so the mean method perform badly, because the mean method reflect on the historic average. The naive method is also poor ,because it repeats the final observed value and ignores both trend and seasonality. The seasonal naive is much stonger benchmark, because it could capture the seasonal pattern and the ets model improves on by also modelling and extrapolating the trend.
+
+
+## Question 2
+
+### Residual diagnostics for the best model
+To check whether the residuals from the ETS model looks like white noise, we use a time plot, an ACF plot and a Ljung-box test.
+
+```{r}
+#| label: residuals
+#| message: false
+#| warning: false
+
+fit_ets <- fit |> select(ETS)
+aug_ets <- fit_ets |> augment()
+
+fit_ets |>
+  gg_tsresiduals() +
+  labs(title = "ETS(M,A,M) residuals")
+```
+
+```{r}
+#| label: acf-residuals
+#| message: false
+#| warning: false
+#| fig-height: 3
+
+aug_ets |>
+  ACF(.innov, lag_max = 36) |>
+  autoplot() +
+  labs(
+    title = "ACF of ETS residuals",
+    y = "Autocorrelation"
+  )
+```
+
+
+```{r}
+#| label: ljung-box
+#| message: false
+#| warning: false
+
+# The Ljung-Box degrees of freedom should equal the number of parameters
+# estimated in the model.
+n_params <- fit_ets |> tidy() |> nrow()
+
+lb <- aug_ets |>
+  features(.innov, ljung_box, lag = 24, dof = n_params)
+
+cat("Number of estimated ETS parameters (dof):", n_params, "\n")
+cat("Number of residual autocorrelations tested:", 24, "\n\n")
+lb
+
+sig <- 1.96 / sqrt(nrow(train))
+cat("\nApproximate 95% bound on residual autocorrelations:", round(sig, 4), "\n")
+sig_lags <- aug_ets |>
+  ACF(.innov, lag_max = 36) |>
+  as.data.frame() |>
+  as_tibble() |>
+  filter(abs(acf) > sig)
+sig_lags |>
+  select(lag, acf)
+
+```
+
+The residuals don't appear to be white noise:
+
+The time plot of innovation residuals show several periods of volatility clustering, and the spread of residuals is not constant. For a correctly spcified model the residual variance should be roughly constant in a multiplicative-error model. The ACF plot shows several autocorrelations that poke outside the 95% confidence bounds. Lags 6,10,14,16,24,33 month are significant. The ACF is not the flat, " all bars inside the bounds" pattern we would expect from white noise. The Ljung-Box test with lag 24 and dof = 17,gives a test statistic of 60.18 with a p-value of 1.39e -10. Since this p-value is far below 0.05, we rejected the null hypothesis that the residuals are white noise.
+
+## Question 3
+
+### Time series cross validation
+
+
+```{r}
+#| label: cv-setup
+#| message: false
+#| warning: false
+
+cv <- train |>
+  stretch_tsibble(.init = 15 * 12, .step = 1 * 12)
+
+fold_windows <- cv |>
+  as_tibble() |>
+  group_by(.id) |>
+  summarise(
+    Fold_start = min(Month),
+    Fold_end   = max(Month),
+    n_train    = n(),
+    .groups    = "drop"
+  )
+
+cat("Number of cross-validation folds:", nrow(fold_windows), "\n")
+cat("Training sample grows from", fold_windows$n_train[1], "months to",
+    fold_windows$n_train[nrow(fold_windows)], "months\n\n")
+fold_windows
+```
+
+
+```{r}
+#| label: cv-fit
+#| message: false
+#| warning: false
+
+fit_cv <- cv |>
+  model(
+    ETS              = ETS(Turnover),
+    Mean             = MEAN(Turnover),
+    Naive            = NAIVE(Turnover),
+    `Seasonal naive` = SNAIVE(Turnover)
+  )
+
+fc_cv <- fit_cv |> forecast(h = "5 years")
+```
+
+
+```{r}
+#| label: cv-accuracy
+#| message: false
+#| warning: false
+
+acc_cv <- fc_cv |>
+  accuracy(train) |>
+  select(.model, ME, RMSE, MAE, MAPE, MASE) |>
+  arrange(RMSE)
+
+acc_cv
+```
+
+#### Robust check: per-folder RMSE
+
+The `accuracy()` call above pools every forecast from every fold into a single RMSE. As a robustness check we also compute the RMSE within each fold and average across folds, so that each forecast origin contributes equally.
+
+
+```{r}
+#| label: cv-per-fold
+#| message: false
+#| warning: false
+
+actuals <- as.data.frame(train) |>
+  select(Month, Turnover_actual = Turnover)
+
+per_fold <- as.data.frame(fc_cv) |>
+  select(.id, .model, Month, .mean) |>
+  left_join(actuals, by = "Month") |>
+  filter(!is.na(Turnover_actual)) |>
+  group_by(.id, .model) |>
+  summarise(
+    RMSE = sqrt(mean((Turnover_actual - .mean)^2)),
+    n    = n(),
+    .groups = "drop"
+  )
+
+per_fold |>
+  group_by(.model) |>
+  summarise(
+    RMSE_mean_of_folds = mean(RMSE),
+    RMSE_median        = median(RMSE),
+    Worst_fold         = max(RMSE),
+    Best_fold          = min(RMSE)
+  ) |>
+  arrange(RMSE_mean_of_folds)
+```
+
+
+
+```{r}
+#| label: cv-per-fold-plot
+#| message: false
+#| warning: false
+#| fig-height: 4
+
+per_fold |>
+  ggplot(aes(x = .id, y = RMSE, colour = .model)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.5) +
+  labs(
+    title = "RMSE by cross-validation fold",
+    x = "Fold (forecast origin, 1 = earliest)",
+    y = "RMSE (turnover, $m)",
+    colour = "Method"
+  )
+```
+
+
+
+```{r}
+#| label: cv-ets-model-instability
+#| message: false
+#| warning: false
+
+# Which ETS model is selected in each fold?
+fold_models <- fit_cv |>
+  as.data.frame() |>
+  mutate(ETS_spec = purrr::map_chr(ETS, ~ fabletools::model_sum(.x))) |>
+  count(ETS_spec, name = "n_folds") |>
+  arrange(desc(n_folds))
+
+fold_models
+```
+
+
+```{r}
+#| label: cv-summary
+#| message: false
+#| warning: false
+
+# Convenience objects used in the discussion below.
+fold_wide <- per_fold |>
+  select(.id, .model, RMSE) |>
+  tidyr::pivot_wider(names_from = .model, values_from = RMSE)
+
+n_folds        <- nrow(fold_wide)
+n_ets_wins     <- sum(fold_wide$ETS < fold_wide$`Seasonal naive`)
+rmse_ets_fold  <- mean(per_fold$RMSE[per_fold$.model == "ETS"])
+rmse_snaive_fold <- mean(per_fold$RMSE[per_fold$.model == "Seasonal naive"])
+
+rmse_test_ets     <- acc_test$RMSE[acc_test$.model == "ETS"]
+rmse_test_snaive  <- acc_test$RMSE[acc_test$.model == "Seasonal naive"]
+rmse_cv_ets       <- acc_cv$RMSE[acc_cv$.model == "ETS"]
+rmse_cv_snaive    <- acc_cv$RMSE[acc_cv$.model == "Seasonal naive"]
+
+pct_gain_test <- 100 * (1 - rmse_test_ets / rmse_test_snaive)
+pct_gain_cv   <- 100 * (1 - rmse_cv_ets / rmse_cv_snaive)
+
+ets_spec_1 <- fold_models$ETS_spec[1]
+n_1        <- fold_models$n_folds[1]
+ets_spec_2 <- if (nrow(fold_models) > 1) fold_models$ETS_spec[2] else fold_models$ETS_spec[1]
+n_2        <- if (nrow(fold_models) > 1) fold_models$n_folds[2] else fold_models$n_folds[1]
+
+cat("Folds:", n_folds, "| ETS beats seasonal naive in:", n_ets_wins, "folds\n")
+cat("ETS worst/best fold RMSE:", round(max(per_fold$RMSE[per_fold$.model == "ETS"]), 1),
+    "/", round(min(per_fold$RMSE[per_fold$.model == "ETS"]), 1), "\n")
+cat("ETS test-set advantage over seasonal naive:", round(pct_gain_test, 1), "%\n")
+cat("ETS CV advantage over seasonal naive:", round(pct_gain_cv, 1), "%\n")
+```
+
+```{r}
+#| label: cv-comparison
+#| message: false
+#| warning: false
+
+# Side-by-side RMSE for the four methods, with ranks under each approach.
+methods <- c("ETS", "Seasonal naive", "Naive", "Mean")
+
+get_rmse <- function(tbl, m) tbl$RMSE[tbl$.model == m]
+
+cv_compare <- tibble::tibble(
+  Method            = methods,
+  `Test set`        = vapply(methods, function(m) get_rmse(acc_test, m), 0),
+  `CV pooled`       = vapply(methods, function(m) get_rmse(acc_cv, m), 0),
+  `CV fold-average` = vapply(methods, function(m) mean(per_fold$RMSE[per_fold$.model == m]), 0)
+) |>
+  mutate(
+    Rank_test      = rank(`Test set`),
+    Rank_cv_pooled = rank(`CV pooled`),
+    Rank_cv_fold   = rank(`CV fold-average`)
+  )
+
+knitr::kable(
+  cv_compare,
+  digits    = 2,
+  align     = c("l", "r", "r", "r", "r", "r", "r"),
+  col.names = c("Method", "Test set RMSE", "CV pooled RMSE", "CV fold-avg RMSE",
+                "Rank (test)", "Rank (CV pooled)", "Rank (CV fold-avg)"),
+  caption   = "RMSE by method under each evaluation approach (lower is better)."
+)
+
+# Focused comparison: how much better is ETS than the seasonal naive benchmark?
+pct_gain_fold <- 100 * (1 - rmse_ets_fold / rmse_snaive_fold)
+rank_flip     <- rmse_snaive_fold < rmse_ets_fold
+
+ets_vs_snaive <- tibble::tibble(
+  `Evaluation approach` = c("Test set (2019-2022)", "CV pooled", "CV fold-average"),
+  `ETS RMSE`            = c(rmse_test_ets, rmse_cv_ets, rmse_ets_fold),
+  `Seasonal naive RMSE` = c(rmse_test_snaive, rmse_cv_snaive, rmse_snaive_fold)
+) |>
+  mutate(`ETS advantage (%)` = 100 * (1 - `ETS RMSE` / `Seasonal naive RMSE`))
+
+knitr::kable(
+  ets_vs_snaive,
+  digits    = 2,
+  align     = c("l", "r", "r", "r"),
+  caption   = "Does ETS beat the seasonal naive benchmark? The answer depends on how accuracy is measured."
+)
+```
+
+
+```{r}
+#| label: cv-forecast-plot
+#| message: false
+#| warning: false
+
+fc_cv |>
+  filter(.model == "ETS") |>
+  autoplot(level = NULL) +
+  autolayer(train |> filter(year(Month) >= 1990), Turnover) +
+  labs(
+    title = "ETS forecasts from successive forecast origins",
+    x = "Month",
+    y = "Turnover ($m)"
+  )
+```
+
+
+### Result of cross-validation
+
+The two tables above give the same information in two ways. The first table shows
+the RMSE of all four methods under all three evaluation approaches; the second
+narrows the focus to the one comparison that actually matters, ETS against its
+strongest rival, the seasonal naive method.
+
+1. The rank order of the two weakest methods is unchanged. Under every
+approach, the mean method is clearly the worst and the naive method is second
+worst. Neither cross-validation nor the test set rescues them, so the conclusion
+about these two methods is robust.
+
+2. The gap between the top two methods collapses. This is the only place where
+the conclusion changes, and the table of ETS-versus-seasonal-naive makes it
+explicit.
+
+3. Fold-to-fold variation is far larger than the difference between the two
+methods. ETS beats seasonal naive in only `r n_ets_wins` of `r n_folds` folds,
+essentially a coin toss. Meanwhile the RMSE varies from
+`r round(min(per_fold$RMSE), 1)` to `r round(max(per_fold$RMSE), 1)` across folds —
+a spread an order of magnitude wider than the
+`r round(abs(rmse_ets_fold - rmse_snaive_fold), 2)` gap between the two methods.
+This is the clearest evidence that the difference between ETS and seasonal naive
+is not meaningful.
+
+4. The ETS model itself is not stable across folds. The automatic selection
+does not pick the same model each time: it chooses
+`r ets_spec_1` in `r n_1` folds and `r ets_spec_2` in `r n_2` folds. When the
+"best" model changes just because the training window shifts by a year, the claim
+that it is the best model is itself fragile.
+
+In conclusion, Yes, cross-validation changes the conclusion. The test set suggests ETS is
+clearly the best method, but cross-validation shows that ETS and the seasonal
+naive method are effectively indistinguishable — and on the fold-averaged measure
+seasonal naive is very slightly ahead. The honest summary is that ETS and
+seasonal naive perform similarly, and both are clearly better than the mean and
+naive methods. The strong claim based on the test set alone is therefore not
+robust.
+
+## Question 4
+
+### Which method of envaluating is more reliable
+
+I think the time series cross validation is more reliable, for several reasons below:
+
+1. It averages over many test periods, rather than relying on one.The test set approach produces a single RMSE based on one particular 4-year window. Because forecasts are only accurate relative to the conditions in that window, the result is highly sensitive to the choice of split. Cross-validation here uses 22 different forecast origins, so a single unusual period cannot dominate the answer.
+
+2. I think the time period is too special. 2019-2022 include the COVID-19 shock and a subsequent strong rebound in retail tunrover, none of the models above take this issue into account. The test set RMSE therefore largerly measure how well a model copied with an unprecedented event, rather than its general forecasting ability. Cross validation spreads the evaluation across ordinary periods as well.
+
+3. Cross validation uses a longer, more varied evaluation window(1997-2022), and can be designed to match the forecast horizon of interest.  We evaluate a 5 year horizon, reflecting how the forecasts would actually be used, and every model was trained only on data available at each origin.
+
+4. It exposes variability that a single number hides. The per fold plot shows RMSE ranging from about 5.9 to 104.4 depending on the origin. 
+
+Cross validation is not perfect. Its folds overlap, for example, successive training sets share data and successive forecast windows overlap in time. 
+
+Here, the test set overstates the case for ETS.The test set suggests ETS is substantially better than seasonal naive, cross validation suggests the two are essentially equivalent. Since cross validation averages over many origins and is far less sensitive to the luck of a single split, the cross validation is preferred.
